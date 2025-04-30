@@ -13,6 +13,8 @@ if [[ ! $LC0_VERSION =~ ^v ]]; then
     exit 1
 fi
 
+echo "LC0_VERSION: $LC0_VERSION"
+
 cd lc0
 git checkout "$LC0_VERSION"
 cp ../pyproject.toml .
@@ -20,11 +22,14 @@ cp ../pyproject.toml .
 VERSION_WITHOUT_V="${LC0_VERSION#v}"
 # For Linux (GNU sed)
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    sed -i "s/<version>/$VERSION_WITHOUT_V/" pyproject.toml
+    sed -i -e "s/<version>/$VERSION_WITHOUT_V/" pyproject.toml
 # For macOS (BSD sed)
 elif [[ "$OSTYPE" == "darwin"* ]]; then
-    sed -i '' "s/<version>/$VERSION_WITHOUT_V/" pyproject.toml
+    sed -i '' -e "s/<version>/$VERSION_WITHOUT_V/" pyproject.toml
 fi
+
+echo "pyproject.toml: $(cat pyproject.toml)"
+
 git config user.name 'Xmaster6y'
 git config user.email '66315201+Xmaster6y@users.noreply.github.com'
 git commit -am "setup.sh: update version to $LC0_VERSION"
