@@ -17,7 +17,7 @@ echo "LC0_VERSION: $LC0_VERSION"
 
 cd lc0
 git checkout "$LC0_VERSION"
-cp ../pyproject.toml .
+cp ../lc0-pyproject.toml pyproject.toml
 # Remove the 'v' prefix for the version in pyproject.toml
 VERSION_WITHOUT_V="${LC0_VERSION#v}"
 # For Linux (GNU sed)
