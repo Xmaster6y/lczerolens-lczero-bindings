@@ -7,14 +7,10 @@ on:
         description: 'Version to publish'
         required: true
 
-permissions:
-  id-token: write
-
 jobs:
   build:
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
         os: ["ubuntu-latest", "macos-latest"] # TODO: fix windows-latest build errors
     runs-on: ${{ matrix.os }}
     environment: publish
@@ -25,19 +21,28 @@ jobs:
       with:
         fetch-depth: 0
         submodules: true
-    - name: Install uv
-      uses: astral-sh/setup-uv@v5
-      with:
-        python-version: ${{ matrix.python-version }}
     - name: Setup build
       run: |
         bash setup.sh
       env:
         LC0_VERSION: ${{ inputs.version }}
+    - name: Build wheels
+      uses: pypa/cibuildwheel@v2.23.3
+      with:
+        package-dir: lc0
+        output-dir: dist
+      env:
+        CIBW_BUILD: py310,py311,py312
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      if: ${{ matrix.os == 'ubuntu-latest' }}
+      with:
+        python-version: ${{ matrix.python-version }}
     - name: Build package
+      if: ${{ matrix.os == 'ubuntu-latest' }}
       run: |
-        uv build lc0 -o dist
-    - name: Store binary wheel
+        uv build lc0 -o dist --sdist
+    - name: Store assets
       uses: actions/upload-artifact@v4
       with:
         name: package-${{ inputs.version }}-${{ strategy.job-index }}
@@ -47,6 +52,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     environment: publish
+    permissions:
+      id-token: write
     steps:
     - name: Download all the dists
       uses: actions/download-artifact@v4
