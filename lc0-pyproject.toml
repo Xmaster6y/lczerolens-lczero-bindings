@@ -18,7 +18,7 @@ classifiers = [
 ]
 
 [project.urls]
-homepage = "https://github.com/LeelaChessZero/lc0"
+homepage = "https://github.com/Xmaster6y/lczerolens-lczero-bindings"
 
 [tool.meson-python.args]
 dist = []
