@@ -25,4 +25,4 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
 elif [[ "$OSTYPE" == "darwin"* ]]; then
     sed -i '' "s/<version>/$VERSION_WITHOUT_V/" pyproject.toml
 fi
-git commit -am "setup.sh: update version to $1"
+git commit -am "setup.sh: update version to $1" -c user.name='Xmaster6y' -c user.email='66315201+Xmaster6y@users.noreply.github.com'
