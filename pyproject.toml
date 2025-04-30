@@ -4,7 +4,7 @@ build-backend = "mesonpy"
 
 [project]
 name = "lczerolens-lczero-bindings"
-version = "<versions>"
+version = "<version>"
 description = "Leela Chess Zero Python bindings"
 authors = [{ name = "The LCZero Authors" }]
 license = {file = "COPYING"}
