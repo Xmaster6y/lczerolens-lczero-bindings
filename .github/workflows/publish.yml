@@ -25,7 +25,9 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Setup build
       run: |
-        bash setup.sh ${{ inputs.version }}
+        bash setup.sh
+      env:
+        LC0_VERSION: ${{ inputs.version }}
     - name: Build package
       run: |
         uv build lc0
