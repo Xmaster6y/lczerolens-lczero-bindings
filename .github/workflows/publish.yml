@@ -36,12 +36,12 @@ jobs:
         LC0_VERSION: ${{ inputs.version }}
     - name: Build package
       run: |
-        uv build lc0
+        uv build lc0 -o dist
     - name: Store binary wheel
       uses: actions/upload-artifact@v4
       with:
         name: package-${{ inputs.version }}-${{ strategy.job-index }}
-        path: lc0/dist
+        path: dist
 
   publish:
     needs: build
@@ -53,8 +53,8 @@ jobs:
       with:
         pattern: package-${{ inputs.version }}-*
         merge-multiple: true
-        path: lc0/dist
+        path: dist
     - name: Publish package
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
-        packages-dir: lc0/dist
+        packages-dir: dist
