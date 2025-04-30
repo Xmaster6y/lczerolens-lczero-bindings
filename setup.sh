@@ -26,6 +26,8 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
 # For macOS (BSD sed)
 elif [[ "$OSTYPE" == "darwin"* ]]; then
     sed -i '' -e "s/<version>/$VERSION_WITHOUT_V/" pyproject.toml
+else
+    sed -i -e "s/<version>/$VERSION_WITHOUT_V/" pyproject.toml
 fi
 
 echo "pyproject.toml: $(cat pyproject.toml)"
