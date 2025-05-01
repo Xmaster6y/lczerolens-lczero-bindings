@@ -3,7 +3,7 @@ requires = ["meson-python"]
 build-backend = "mesonpy"
 
 [project]
-name = "lczerolens-lczero-bindings"
+name = "v-lczero-bindings"
 version = "<version>"
 description = "Leela Chess Zero Python bindings"
 authors = [{ name = "The LCZero Authors" }]
@@ -21,7 +21,7 @@ classifiers = [
 ]
 
 [project.urls]
-homepage = "https://github.com/Xmaster6y/lczerolens-lczero-bindings"
+homepage = "https://github.com/Xmaster6y/v-lczero-bindings"
 
 [tool.meson-python.args]
 dist = []
