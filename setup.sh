@@ -20,11 +20,8 @@ git checkout "$LC0_VERSION"
 cp ../lc0-pyproject.toml pyproject.toml
 # Remove the 'v' prefix for the version in pyproject.toml
 VERSION_WITHOUT_V="${LC0_VERSION#v}"
-# For Linux (GNU sed)
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    sed -i -e "s/<version>/$VERSION_WITHOUT_V/" pyproject.toml
 # For macOS (BSD sed)
-elif [[ "$OSTYPE" == "darwin"* ]]; then
+if [[ "$OSTYPE" == "darwin"* ]]; then
     sed -i '' -e "s/<version>/$VERSION_WITHOUT_V/" pyproject.toml
 else
     sed -i -e "s/<version>/$VERSION_WITHOUT_V/" pyproject.toml
