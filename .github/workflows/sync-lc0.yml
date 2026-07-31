@@ -1,0 +1,52 @@
+name: Sync lc0 release
+
+on:
+  schedule:
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: sync-lc0-release
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: recursive
+    - id: latest
+      name: Find latest stable lc0 release
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        version="$(gh api repos/LeelaChessZero/lc0/releases/latest --jq .tag_name)"
+        if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "::error::Unexpected lc0 release tag '$version'"
+          exit 1
+        fi
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+    - name: Update lc0 submodule
+      env:
+        VERSION: ${{ steps.latest.outputs.version }}
+      run: |
+        git -C lc0 fetch origin tag "$VERSION"
+        git -C lc0 checkout --detach "$VERSION"
+        git -C lc0 submodule update --init --recursive
+    - uses: peter-evans/create-pull-request@v7
+      with:
+        branch: automation/lc0-${{ steps.latest.outputs.version }}
+        delete-branch: true
+        commit-message: "Update lc0 to ${{ steps.latest.outputs.version }}"
+        title: "Update lc0 to ${{ steps.latest.outputs.version }}"
+        body: |
+          Updates the lc0 submodule to the latest stable upstream release,
+          `${{ steps.latest.outputs.version }}`.
+
+          Merging this PR triggers the tested wheel publication workflow.
