@@ -1,6 +1,12 @@
-name: Publish
+name: Build and publish
 
 on:
+  pull_request:
+    paths:
+      - lc0
+      - lc0-pyproject.toml
+      - setup.sh
+      - .github/workflows/publish.yml
   push:
     branches: [main]
     paths:
@@ -130,7 +136,9 @@ jobs:
 
   publish:
     needs: [prepare, build, sdist]
-    if: needs.prepare.outputs.publish == 'true'
+    if: >-
+      github.event_name != 'pull_request' &&
+      needs.prepare.outputs.publish == 'true'
     runs-on: ubuntu-latest
     environment: publish
     permissions:
@@ -152,6 +160,7 @@ jobs:
     needs: [prepare, publish]
     if: >-
       always() &&
+      github.event_name != 'pull_request' &&
       (needs.prepare.outputs.publish == 'false' ||
       needs.publish.result == 'success')
     runs-on: ubuntu-latest
