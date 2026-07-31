@@ -1,67 +1,189 @@
-name: Publish
+name: Build and publish
 
 on:
+  pull_request:
+    paths:
+      - lc0
+      - lc0-pyproject.toml
+      - setup.sh
+      - .github/workflows/publish.yml
+  push:
+    branches: [main]
+    paths:
+      - lc0
+      - lc0-pyproject.toml
+      - setup.sh
+      - .github/workflows/publish.yml
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to publish'
-        required: true
+        description: "lc0 tag to publish; defaults to the checked-out submodule tag"
+        required: false
+        type: string
+
+concurrency:
+  group: publish-v-lczero-bindings
+  cancel-in-progress: false
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        os: ["ubuntu-latest", "macos-latest"] # TODO: fix windows-latest build errors
-    runs-on: ${{ matrix.os }}
-    environment: publish
-    permissions:
-      id-token: write
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.release.outputs.publish }}
+      version: ${{ steps.release.outputs.version }}
     steps:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
-        submodules: true
-    - name: Setup build
-      run: |
-        bash setup.sh
+        submodules: recursive
+    - id: release
+      name: Resolve and validate release
       env:
-        LC0_VERSION: ${{ inputs.version }}
+        REQUESTED_VERSION: ${{ inputs.version }}
+      run: |
+        version="${REQUESTED_VERSION:-}"
+        if [[ -z "$version" ]]; then
+          version="$(git -C lc0 describe --tags --exact-match)"
+        fi
+        if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "::error::Expected a stable lc0 tag such as v0.32.1, got '$version'"
+          exit 1
+        fi
+        submodule_version="$(git -C lc0 describe --tags --exact-match)"
+        if [[ "$version" != "$submodule_version" ]]; then
+          echo "::error::Requested $version but the lc0 submodule is $submodule_version"
+          exit 1
+        fi
+        package_version="${version#v}"
+        if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+          publish=false
+        else
+          status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            "https://pypi.org/pypi/v-lczero-bindings/${package_version}/json")"
+          if [[ "$status" == "200" ]]; then
+            publish=false
+          elif [[ "$status" == "404" ]]; then
+            publish=true
+          else
+            echo "::error::Unexpected PyPI response: HTTP $status"
+            exit 1
+          fi
+        fi
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+        echo "publish=$publish" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    if: >-
+      github.event_name == 'pull_request' ||
+      needs.prepare.outputs.publish == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
+          - runner: macos-15-intel
+            arch: x86_64
+          - runner: macos-14
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: recursive
+    - name: Setup build
+      run: bash setup.sh
+      env:
+        LC0_VERSION: ${{ needs.prepare.outputs.version }}
     - name: Build wheels
-      uses: pypa/cibuildwheel@v2.23.3
+      uses: pypa/cibuildwheel@v3.4.1
       with:
         package-dir: lc0
         output-dir: dist
       env:
-        CIBW_BUILD: cp{310,311,312}-{macosx_arm64,manylinux_x86_64}
-    - name: Install uv
-      uses: astral-sh/setup-uv@v5
-      if: ${{ matrix.os == 'ubuntu-latest' }}
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Build package
-      if: ${{ matrix.os == 'ubuntu-latest' }}
-      run: |
-        uv build lc0 -o dist --sdist
+        CIBW_ARCHS: ${{ matrix.arch }}
+        CIBW_BUILD: cp{310,311,312,313,314}-*
+        CIBW_SKIP: "*-musllinux_* cp3??t-*"
+        CIBW_TEST_COMMAND: >-
+          python -c "import lczero;
+          from lczero.backends import Backend, GameState, Weights"
     - name: Store assets
       uses: actions/upload-artifact@v4
       with:
-        name: package-${{ inputs.version }}-${{ strategy.job-index }}
+        name: wheels-${{ matrix.runner }}-${{ matrix.arch }}
         path: dist
+        if-no-files-found: error
+
+  sdist:
+    needs: prepare
+    if: >-
+      github.event_name == 'pull_request' ||
+      needs.prepare.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: recursive
+    - uses: astral-sh/setup-uv@v6
+    - name: Setup build
+      run: bash setup.sh
+      env:
+        LC0_VERSION: ${{ needs.prepare.outputs.version }}
+    - name: Build source distribution
+      run: uv build lc0 --sdist --out-dir dist
+    - uses: actions/upload-artifact@v4
+      with:
+        name: sdist
+        path: dist
+        if-no-files-found: error
 
   publish:
-    needs: build
+    needs: [prepare, build, sdist]
+    if: >-
+      github.event_name != 'pull_request' &&
+      needs.prepare.outputs.publish == 'true'
     runs-on: ubuntu-latest
     environment: publish
     permissions:
       id-token: write
+      contents: write
     steps:
     - name: Download all the dists
       uses: actions/download-artifact@v4
       with:
-        pattern: package-${{ inputs.version }}-*
+        pattern: "*"
         merge-multiple: true
         path: dist
     - name: Publish package
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         packages-dir: dist
+
+  release:
+    needs: [prepare, publish]
+    if: >-
+      always() &&
+      github.event_name != 'pull_request' &&
+      (needs.prepare.outputs.publish == 'false' ||
+      needs.publish.result == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - name: Create GitHub release
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+        VERSION: ${{ needs.prepare.outputs.version }}
+      run: |
+        if ! gh release view "$VERSION" >/dev/null 2>&1; then
+          gh release create "$VERSION" \
+            --target "$GITHUB_SHA" \
+            --title "$VERSION" \
+            --notes "Python bindings built from Leela Chess Zero $VERSION."
+        fi
